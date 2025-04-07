@@ -1,0 +1,15 @@
+com\example\client\TestConverter$XMLHandler.class
+com\example\client\TestConverter.class
+com\example\client\DocumentData.class
+com\example\client\PackageData.class
+com\example\client\Data.class
+com\example\client\Request.class
+com\example\client\XMLToJsonFileConverter$XMLHandler.class
+com\example\client\Part.class
+com\example\client\PackageClient.class
+com\example\client\Response.class
+com\example\client\JsonToPostgresLoader.class
+com\example\client\XMLToJsonFileConverter.class
+com\example\client\PackageServer$ClientHandler.class
+com\example\client\LoggerUtil.class
+com\example\client\PackageServer.class

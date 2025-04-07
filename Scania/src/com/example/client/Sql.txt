@@ -1,0 +1,34 @@
+CREATE TABLE packages (
+    package_id TEXT PRIMARY KEY,
+    state TEXT,
+    type TEXT,
+    subtype TEXT
+    -- Additional dynamic columns will be added based on attributes
+);
+
+CREATE UNIQUE INDEX idx_packages_package_id ON packages(package_id);
+
+
+CREATE TABLE documents (
+    document_id TEXT PRIMARY KEY,
+    package_id TEXT REFERENCES packages(package_id),
+    title TEXT,
+    type TEXT,
+    subtype TEXT
+    -- Additional dynamic columns will be added based on attributes
+);
+
+CREATE UNIQUE INDEX idx_documents_document_id ON documents(document_id);
+
+
+CREATE TABLE parts (
+    part_id TEXT PRIMARY KEY,
+    package_id TEXT REFERENCES packages(package_id),
+    name TEXT,
+    state TEXT,
+    partNumber TEXT,
+    subtype TEXT
+    -- Additional dynamic columns will be added based on attributes
+);
+
+CREATE UNIQUE INDEX idx_parts_part_id ON parts(part_id);
