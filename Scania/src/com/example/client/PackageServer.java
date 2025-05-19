@@ -6,13 +6,13 @@ import java.net.Socket;
 import java.util.List;
 
 public class PackageServer {
-    private static final int PORT = 9876;
+    private static final int PORT = Integer.parseInt(ConfigUtil.get("server.port"));;
     private static ServerSocket serverSocket;
 
     public static void main(String[] args) {
         try {
             serverSocket = new ServerSocket(PORT);
-            System.out.println("✅ Server is running on port " + PORT);
+            System.out.println("Server is running on port " + PORT);
 
             while (true) {
                 Socket socket = serverSocket.accept();
@@ -29,7 +29,7 @@ public class PackageServer {
         try {
             if (serverSocket != null && !serverSocket.isClosed()) {
                 serverSocket.close();
-                System.out.println("✅ Server socket closed.");
+                System.out.println("Server socket closed.");
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -58,6 +58,12 @@ public class PackageServer {
                 case 5:
                     response = XMLToJsonFileConverter.convertXmlToJson(fileKey);
                     break;
+                case 6:
+                    response = JsonToPostgresLoader.loadJsonToDatabase(fileKey); // You'll need to implement this method
+                    break;
+                case 7:
+					closeServerSocket();
+
                 default:
                     response.setError("Invalid option.");
             }

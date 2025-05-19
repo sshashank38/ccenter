@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class LoggerUtil {
-    private static final String LOG_FILE = "C:\\temp\\TestCompany\\logs\\application.log";
+    private static final String LOG_FILE =  ConfigUtil.get("application.log");
     private static PrintWriter logWriter;
 
     static {
@@ -21,7 +21,7 @@ public class LoggerUtil {
     public static synchronized void log(String level, String message) {
         String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
         String logEntry = "[" + timestamp + "] [" + level + "] " + message;
-
+ 
         // Print to console
         System.out.println(logEntry);
 

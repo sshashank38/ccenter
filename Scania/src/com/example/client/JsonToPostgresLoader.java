@@ -2,119 +2,107 @@ package com.example.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.io.File;
 import java.sql.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class JsonToPostgresLoader {
-	public static void main(String[] args) throws Exception {
-		Connection conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/ccenter", "postgres", "1234");
-		ObjectMapper mapper = new ObjectMapper();
-		JsonNode root = mapper.readTree(new File("C:\\temp\\TestCompany\\output\\p125.json"));
+   
+    private static final String DB_URL = ConfigUtil.get("db.url");
+    private static final String USER = ConfigUtil.get("db.user");
+    private static final String PASS = ConfigUtil.get("db.pass");
 
-        for (JsonNode packageNode : root.get("packages")) {
-            Map<String, String> baseFields = new HashMap<>();
-            baseFields.put("package_id", getTextOrNull(packageNode, "id"));
-            baseFields.put("state", getTextOrNull(packageNode, "state"));
-            baseFields.put("type", getTextOrNull(packageNode, "type"));
-            baseFields.put("subtype", getTextOrNull(packageNode, "subtype"));
 
-            Map<String, String> attributes = jsonNodeToMap(packageNode.get("attributes"));
-            insertWithAttributes(conn, "packages", baseFields, attributes);
-        }
-
-        for (JsonNode partNode : root.get("parts")) {
-            Map<String, String> baseFields = new HashMap<>();
-            baseFields.put("part_id", getTextOrNull(partNode, "id"));
-            baseFields.put("package_id", getTextOrNull(partNode, "packageId"));
-            baseFields.put("name", getTextOrNull(partNode, "name"));
-            baseFields.put("state", getTextOrNull(partNode, "state"));
-            baseFields.put("partNumber", getTextOrNull(partNode, "partNumber"));
-            baseFields.put("subtype", getTextOrNull(partNode, "subtype"));
-
-            Map<String, String> attributes = jsonNodeToMap(partNode.get("attributes"));
-            insertWithAttributes(conn, "parts", baseFields, attributes);
-        }
-
-        for (JsonNode docNode : root.get("documents")) {
-            Map<String, String> baseFields = new HashMap<>();
-            baseFields.put("document_id", getTextOrNull(docNode, "id"));
-            baseFields.put("package_id", getTextOrNull(docNode, "packageId"));
-            baseFields.put("title", getTextOrNull(docNode, "title"));
-            baseFields.put("type", getTextOrNull(docNode, "type"));
-            baseFields.put("subtype", getTextOrNull(docNode, "subtype"));
-
-            Map<String, String> attributes = jsonNodeToMap(docNode.get("attributes"));
-            insertWithAttributes(conn, "documents", baseFields, attributes);
-        }
-
-        conn.close();
-    }
-
-    private static String getTextOrNull(JsonNode node, String key) {
-        JsonNode valueNode = node.get(key);
-        return valueNode != null && !valueNode.isNull() ? valueNode.asText() : null;
-    }
-
-    private static Map<String, String> jsonNodeToMap(JsonNode node) {
-        Map<String, String> map = new HashMap<>();
-        if (node != null) {
-            node.fields().forEachRemaining(entry -> {
-                JsonNode value = entry.getValue();
-                map.put(entry.getKey(), value.isNull() ? null : value.asText());
-            });
-        }
-        return map;
-    }
-
-    private static void insertWithAttributes(Connection conn, String tableName, Map<String, String> baseFields, Map<String, String> attributes) throws SQLException {
-        Map<String, String> allFields = new LinkedHashMap<>();
-        allFields.putAll(baseFields);
-        allFields.putAll(attributes);
-
-        for (String column : allFields.keySet()) {
-            ensureColumnExists(conn, tableName, column);
-        }
-
-        String columns = allFields.keySet().stream()
-            .map(col -> "\"" + col + "\"")
-            .collect(Collectors.joining(", "));
-        String placeholders = String.join(", ", Collections.nCopies(allFields.size(), "?"));
-
-        String conflictKey;
-        if ("packages".equals(tableName)) {
-            conflictKey = "package_id";
-        } else if ("parts".equals(tableName)) {
-            conflictKey = "part_id";
-        } else if ("documents".equals(tableName)) {
-            conflictKey = "document_id";
-        } else {
-            throw new IllegalArgumentException("Unknown table: " + tableName);
-        }
-
-        String sql = "INSERT INTO " + tableName + " (" + columns + ") VALUES (" + placeholders + ") " +
-                     "ON CONFLICT (\"" + conflictKey + "\") DO NOTHING";
-
-        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-            int i = 1;
-            for (String value : allFields.values()) {
-                stmt.setString(i++, value);
+    public static Response loadJsonToDatabase(String fileKey) {
+        Response response = new Response();
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+            File jsonFile = new File("C:/temp/TestCompany/output/" + fileKey + ".json");
+            if (!jsonFile.exists()) {
+                response.setError("JSON file not found.");
+                return response;
             }
-            stmt.executeUpdate();
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonFile);
+
+            for (JsonNode pkg : root.withArray("packages")) {
+                insertWithAttributes(conn, "packages", pkg);
+            }
+            for (JsonNode part : root.withArray("parts")) {
+                insertWithAttributes(conn, "parts", part);
+            }
+            for (JsonNode doc : root.withArray("documents")) {
+                insertWithAttributes(conn, "documents", doc);
+            }
+
+            LoggerUtil.info("Inserted data from JSON to DB successfully.");
+            response.setData("Inserted JSON data to DB successfully.");
+        } catch (Exception e) {
+            LoggerUtil.error("Error loading JSON to DB: " + e.getMessage());
+            response.setError("DB Error: " + e.getMessage());
+        }
+        return response;
+    }
+
+    private static void insertWithAttributes(Connection conn, String table, JsonNode node) throws SQLException {
+        Map<String, String> fields = new LinkedHashMap<>();
+
+        // Add direct fields
+        Iterator<Map.Entry<String, JsonNode>> it = node.fields();
+        while (it.hasNext()) {
+            Map.Entry<String, JsonNode> entry = it.next();
+            if (!"attributes".equals(entry.getKey())) {
+                fields.put(entry.getKey(), entry.getValue().asText());
+            }
+        }
+
+        // Add attributes
+        JsonNode attrNode = node.get("attributes");
+        if (attrNode != null && attrNode.isObject()) {
+            attrNode.fields().forEachRemaining(entry -> fields.put(entry.getKey().replaceAll("[^a-zA-Z0-9_]", "_"), entry.getValue().asText()));
+        }
+
+        ensureColumns(conn, table, fields);
+        buildAndExecuteInsert(conn, table, fields);
+    }
+
+    private static void ensureColumns(Connection conn, String table, Map<String, String> fields) throws SQLException {
+        for (String col : fields.keySet()) {
+            String checkSQL = "SELECT column_name FROM information_schema.columns WHERE table_name = ? AND column_name = ?";
+            try (PreparedStatement ps = conn.prepareStatement(checkSQL)) {
+                ps.setString(1, table);
+                ps.setString(2, col);
+                ResultSet rs = ps.executeQuery();
+                if (!rs.next()) {
+                    String alterSQL = "ALTER TABLE " + table + " ADD COLUMN \"" + col + "\" TEXT";
+                    try (Statement stmt = conn.createStatement()) {
+                        stmt.executeUpdate(alterSQL);
+                    }
+                }
+            }
         }
     }
 
-    private static void ensureColumnExists(Connection conn, String tableName, String columnName) {
-        try (Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery("SELECT column_name FROM information_schema.columns WHERE table_name='" + tableName + "' AND column_name='" + columnName + "'");
-            if (!rs.next()) {
-                String alterSql = "ALTER TABLE " + tableName + " ADD COLUMN \"" + columnName + "\" TEXT";
-                stmt.executeUpdate(alterSql);
+    private static void buildAndExecuteInsert(Connection conn, String table, Map<String, String> fields) throws SQLException {
+        StringBuilder sql = new StringBuilder("INSERT INTO " + table + " (");
+        StringBuilder placeholders = new StringBuilder("VALUES (");
+        List<String> values = new ArrayList<>();
+
+        for (String col : fields.keySet()) {
+            sql.append("\"").append(col).append("\",");
+            placeholders.append("?,");
+            values.add(fields.get(col));
+        }
+
+        sql.setLength(sql.length() - 1);
+        placeholders.setLength(placeholders.length() - 1);
+        sql.append(") ").append(placeholders).append(")");
+
+        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            for (int i = 0; i < values.size(); i++) {
+                ps.setString(i + 1, values.get(i));
             }
-        } catch (SQLException e) {
-            e.printStackTrace();
+            ps.executeUpdate();
         }
     }
 }

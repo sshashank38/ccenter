@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Map;
 
 public class XMLToJsonFileConverter {
-	private static final String INPUT_DIR = "C:\\temp\\TestCompany\\input\\";
-	private static final String OUTPUT_DIR = "C:\\temp\\TestCompany\\output\\";
+	private static final String INPUT_DIR =  ConfigUtil.get("input.dir");
+	private static final String OUTPUT_DIR =  ConfigUtil.get("output.dir");
 
 	public static Response convertXmlToJson(String fileKey) {
 		Response response = new Response();

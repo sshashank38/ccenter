@@ -1,6 +1,7 @@
 package com.example.client;
 
 import java.io.*;
+import java.io.ObjectInputFilter.Config;
 import java.net.Socket;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -8,8 +9,8 @@ import java.util.Scanner;
 import java.util.logging.Logger;
 
 public class PackageClient {
-    private static final String SERVER_ADDRESS = "localhost";
-    private static final int SERVER_PORT = 9876;
+    private static final String SERVER_ADDRESS = ConfigUtil.get("server.address");
+    private static final int SERVER_PORT = Integer.parseInt(ConfigUtil.get("server.port"));
     private static final Logger logger = Logger.getLogger(PackageClient.class.getName());
 
     public static void main(String[] args) {
@@ -27,7 +28,8 @@ public class PackageClient {
                 System.out.println("3. Get part details");
                 System.out.println("4. Get document details");
                 System.out.println("5. Convert XML to JSON");
-                System.out.println("6. Exit");
+                System.out.println("6. Load Json to PostgreSQL Database");
+                System.out.println("7. Exit");
                 System.out.println("------------------");
 
                 int option = getUserOption(scanner);
@@ -50,6 +52,10 @@ public class PackageClient {
                         request.setFileKey(scanner.nextLine().trim());
                         break;
                     case 6:
+                        System.out.print("Enter file key (without .json): ");
+                        request.setFileKey(scanner.nextLine());
+                        break;
+                    case 7:
                         logInfo("Exiting client.");
                         System.out.println("Exiting client. Goodbye!");
                         return;
